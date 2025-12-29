@@ -1,0 +1,60 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: koalbot_db
+    environment:
+      POSTGRES_USER: koalbot
+      POSTGRES_PASSWORD: koalbot
+      POSTGRES_DB: koalbot
+    ports:
+      - "5432:5432"
+    volumes:
+      - koalbot_db_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U koalbot -d koalbot"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M
+  api:
+    build: .
+    container_name: koalbot_api
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
+
+  ui:
+    build:
+      context: ./koalbot-ui
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8080/
+    container_name: koalbot_ui
+    ports:
+      - "80:3000"
+    depends_on:
+      api:
+        condition: service_started
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M
+
+volumes:
+  koalbot_db_data:
