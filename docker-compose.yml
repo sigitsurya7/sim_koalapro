@@ -1,4 +1,27 @@
 services:
+  nginx:
+    image: nginx:alpine
+    container_name: koalbot_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      - ./nginx/conf:/etc/nginx/conf.d
+      - ./nginx/certbot/www:/var/www/certbot
+      - ./nginx/certbot/conf:/etc/letsencrypt
+    depends_on:
+      - ui
+      - api
+    restart: unless-stopped
+
+  certbot:
+    image: certbot/certbot
+    container_name: koalbot_certbot
+    volumes:
+      - ./nginx/certbot/www:/var/www/certbot
+      - ./nginx/certbot/conf:/etc/letsencrypt
+
   db:
     image: postgres:16-alpine
     container_name: koalbot_db
@@ -6,6 +29,7 @@ services:
       POSTGRES_USER: koalbot
       POSTGRES_PASSWORD: koalbot
       POSTGRES_DB: koalbot
+    # OPTIONAL: kalau nggak perlu akses DB dari luar, hapus ports ini
     ports:
       - "5432:5432"
     volumes:
@@ -16,45 +40,32 @@ services:
       interval: 2s
       timeout: 3s
       retries: 15
-    deploy:
-      resources:
-        limits:
-          cpus: "0.50"
-          memory: 512M
+
   api:
     build: .
     container_name: koalbot_api
-    ports:
-      - "8080:8080"
+    expose:
+      - "8080"
     env_file:
       - .env
     depends_on:
       db:
         condition: service_healthy
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: "0.50"
-          memory: 256M
 
   ui:
     build:
       context: ./koalbot-ui
       args:
-        NEXT_PUBLIC_API_URL: http://localhost:8080/
+        # Saran terbaik: same-origin biar cookie/login aman
+        NEXT_PUBLIC_API_URL: /api
     container_name: koalbot_ui
-    ports:
-      - "80:3000"
+    expose:
+      - "3000"
     depends_on:
       api:
         condition: service_started
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: "0.50"
-          memory: 512M
 
 volumes:
   koalbot_db_data:
